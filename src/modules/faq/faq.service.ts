@@ -1,10 +1,11 @@
-import { BadRequestException, Injectable, InternalServerErrorException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, HttpStatus, Injectable, InternalServerErrorException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Faq } from './entities/faq.entity';
 import { CreateFaqDto } from './dto/create-faq.dto';
 import { IFaq } from './faq.interface';
 import { UpdateFaqDto } from './dto/update-faq.dto';
+import { CustomHttpException } from '../../helpers/custom-http-filter';
 
 @Injectable()
 export class FaqService {
@@ -17,6 +18,7 @@ export class FaqService {
     const faq = this.faqRepository.create(createFaqDto);
     return this.faqRepository.save(faq);
   }
+
   async findAllFaq() {
     try {
       const faqs = await this.faqRepository.find();
@@ -40,45 +42,21 @@ export class FaqService {
   async updateFaq(id: string, updateFaqDto: UpdateFaqDto) {
     const faq = await this.faqRepository.findOne({ where: { id } });
     if (!faq) {
-      throw new BadRequestException({
-        message: 'Invalid request data',
-        status_code: 400,
-      });
+      throw new CustomHttpException('Question could not be found', HttpStatus.NOT_FOUND);
     }
-    try {
-      Object.assign(faq, updateFaqDto);
-      const updatedFaq = await this.faqRepository.save(faq);
-      return {
-        id: updatedFaq.id,
-        question: updatedFaq.question,
-        answer: updatedFaq.answer,
-        category: updatedFaq.category,
-      };
-    } catch (error) {
-      if (error instanceof UnauthorizedException) {
-        return {
-          message: 'Unauthorized access',
-          status_code: 401,
-        };
-      } else if (error instanceof BadRequestException) {
-        return {
-          message: 'Invalid request data',
-          status_code: 400,
-        };
-      }
-    }
+
+    Object.assign(faq, updateFaqDto);
+    const updatedFaq = await this.faqRepository.save(faq);
+    const payload = {
+      id: updatedFaq.id,
+      question: updatedFaq.question,
+      answer: updatedFaq.answer,
+      category: updatedFaq.category,
+      created_at: updatedFaq.created_at,
+      updated_at: updatedFaq.updated_at,
+    };
+    return { status_code: 200, message: 'FAQ updated successfully', data: payload };
   }
 
-  async removeFaq(id: string) {
-    const result = await this.faqRepository.delete(id);
-    if (result.affected === 0) {
-      throw new BadRequestException({
-        message: 'Invalid request',
-        status_code: 400,
-      });
-    }
-    return {
-      message: 'FAQ successfully deleted',
-    };
-  }
+  async removeFaq(id: string) {}
 }

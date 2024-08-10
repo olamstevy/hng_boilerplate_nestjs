@@ -3,7 +3,8 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { FaqService } from '../faq.service';
 import { Faq } from '../entities/faq.entity';
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, HttpStatus } from '@nestjs/common';
+import { CustomHttpException } from '../../../helpers/custom-http-filter';
 
 describe('FaqService', () => {
   let service: FaqService;
@@ -56,9 +57,16 @@ describe('FaqService', () => {
 
   describe('update', () => {
     it('should update and return a FAQ', async () => {
-      const id = '1';
+      const id = 'some-faq-uuid';
       const updateFaqDto = { question: 'Updated Q', answer: 'Updated A', category: 'Updated C' };
-      const existingFaq = { id, question: 'Q', answer: 'A', category: 'C' };
+      const existingFaq = {
+        id,
+        question: 'Q',
+        answer: 'A',
+        category: 'C',
+        created_at: new Date(),
+        updated_at: new Date(),
+      };
       const updatedFaq = { ...existingFaq, ...updateFaqDto };
 
       mockRepository.findOne.mockResolvedValue(existingFaq);
@@ -66,18 +74,20 @@ describe('FaqService', () => {
 
       const result = await service.updateFaq(id, updateFaqDto);
 
-      expect(result).toEqual(updatedFaq);
+      expect(result).toEqual({ status_code: 200, message: 'FAQ updated successfully', data: updatedFaq });
       expect(mockRepository.findOne).toHaveBeenCalledWith({ where: { id } });
       expect(mockRepository.save).toHaveBeenCalledWith(updatedFaq);
     });
 
-    it('should throw BadRequestException if FAQ not found', async () => {
+    it('should throw NotFoundException if FAQ not found', async () => {
       const id = '1';
       const updateFaqDto = { question: 'Updated Q' };
 
       mockRepository.findOne.mockResolvedValue(null);
 
-      await expect(service.updateFaq(id, updateFaqDto)).rejects.toThrow(BadRequestException);
+      await expect(service.updateFaq(id, updateFaqDto)).rejects.toThrow(
+        new CustomHttpException('Question could not be found', HttpStatus.NOT_FOUND)
+      );
       expect(mockRepository.findOne).toHaveBeenCalledWith({ where: { id } });
     });
   });
